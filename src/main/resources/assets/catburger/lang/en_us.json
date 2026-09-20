@@ -1,0 +1,9 @@
+{
+  "item.catburger.cat_burger": "Cat Burger",
+  "item.catburger.cat_burger.tooltip": "Meow!",
+  "creativetab.catburger.catburger_tab": "Cat Burger",
+  "key.category.catburger": "Cat Burger",
+  "key.catburger.toggle_companion_visible": "Toggle Cirno Visibility",
+  "key.catburger.toggle_telekinesis_mode": "Toggle Telekinesis Mode",
+  "key.catburger.open_cirno_gui": "Open Cirno Inventory"
+}
