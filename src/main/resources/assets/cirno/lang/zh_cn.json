@@ -1,0 +1,22 @@
+{
+  "item.cirno.cirno": "Cirno",
+  "item.cirno.cirno.tooltip": "喵!",
+  "item.cirno.oathpin": "誓约发簪",
+  "item.cirno.oathpin.tooltip": "以白色花瓣封存的誓言。",
+  "item.cirno.oathpin.tooltip2": "她将永远不会离开你的身边。",
+  "item.cirno.oathpin.tooltip3": "主手持有时,可在琪露诺面板(长按 H)中使用「+ Add」。",
+  "item.cirno.oathpin.tooltip4": "注视自己的女仆并点击「+ Add」,即可将她转化为指令式琪露诺。",
+  "item.cirno.oathpin.tooltip5": "指令式琪露诺无需 Curious 饰品,占用一个空闲栏位,生存模式可用。",
+  "item.cirno.solyn": "Solyn",
+  "item.cirno.solyn.tooltip": "她来自群星",
+  "item.cirno.spirit": "Spirit",
+  "item.cirno.spirit.tooltip": "一种无法脱离并分享活体身体而存在的灵体",
+  "item.cirno.tatsumaki": "Tatsumaki",
+  "item.cirno.tatsumaki.tooltip": "拥有强大念动力的龙卷恐怖",
+  "creativetab.cirno.cirno_tab": "Cirno",
+  "key.category.cirno": "无法独自生存的妖精",
+  "key.cirno.toggle_companion_visible": "切换琪露诺显示",
+  "key.cirno.toggle_telekinesis_mode": "切换念动力模式",
+  "key.cirno.open_cirno_gui": "打开琪露诺物品栏",
+  "key.cirno.mount_cirno": "手持鞍骑乘琪露诺"
+}

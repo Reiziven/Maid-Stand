@@ -1,0 +1,94 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"solyn": {
+			"loop": "hold_on_last_frame",
+			"bones": {
+				"ysmGlowbone54": {
+					"scale": 0
+				},
+				"bone21": {
+					"scale": 0
+				},
+				"ysmGlowbone15": {
+					"scale": 0
+				},
+				"zui1": {
+					"scale": 0
+				},
+				"zui2": {
+					"scale": 0
+				},
+				"zui3": {
+					"scale": 0
+				},
+				"zui4": {
+					"scale": 0
+				},
+				"zui5": {
+					"scale": 0
+				},
+				"zui6": {
+					"scale": 0
+				},
+				"bone29": {
+					"scale": 0
+				},
+				"bone128": {
+					"scale": 0
+				},
+				"bone148": {
+					"scale": 0
+				},
+				"bone97": {
+					"scale": 0
+				},
+				"bone166": {
+					"scale": 0
+				},
+				"bone133": {
+					"scale": 0
+				},
+				"ysmGlowbone50": {
+					"scale": 0
+				},
+				"ysmGlowbone51": {
+					"scale": 0
+				},
+				"kuku": {
+					"scale": 0
+				},
+				"bone189": {
+					"scale": 0
+				},
+				"bone16": {
+					"scale": 0
+				},
+				"bone190": {
+					"scale": 0
+				},
+				"ysmGlowbone23bone22": {
+					"scale": 0
+				},
+				"bone220": {
+					"scale": 0
+				},
+				"bone199": {
+					"scale": 0
+				},
+				"bone192": {
+					"scale": 0
+				},
+				"ysmGlowbone24": {
+					"scale": 0
+				},
+				"bone207": {
+					"scale": 0
+				},
+				"preview": {
+					"scale": 0
+				}
+			}
+		}
+	}
+}

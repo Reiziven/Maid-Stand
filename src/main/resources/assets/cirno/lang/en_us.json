@@ -1,0 +1,22 @@
+{
+  "item.cirno.cirno": "Cirno",
+  "item.cirno.cirno.tooltip": "A Fairy who cannot live alon",
+  "item.cirno.oathpin": "Oathpin",
+  "item.cirno.oathpin.tooltip": "A vow sealed in white petals.",
+  "item.cirno.oathpin.tooltip2": "She will never leave your side.",
+  "item.cirno.oathpin.tooltip3": "Hold in your main hand to unlock \"+ Add\" in the Cirno Panel (hold H).",
+  "item.cirno.oathpin.tooltip4": "Look at one of your maids and press \"+ Add\" to transform her into a command Cirno.",
+  "item.cirno.oathpin.tooltip5": "Command Cirnos need no Curious item. Uses a free slot; works in survival.",
+  "item.cirno.solyn": "Solyn",
+  "item.cirno.solyn.tooltip": "She came form the stars",
+  "item.cirno.spirit": "Spirit",
+  "item.cirno.spirit.tooltip": "a Spirit who cannot exist without sharing a body of a living being",
+  "item.cirno.tatsumaki": "Tatsumaki",
+  "item.cirno.tatsumaki.tooltip": "Tornado Terror with strong telekinesis power",
+  "creativetab.cirno.cirno_tab": "Cirno",
+  "key.category.cirno": "A Fairy who cannot live alone",
+  "key.cirno.toggle_companion_visible": "Toggle Cirno Visibility",
+  "key.cirno.toggle_telekinesis_mode": "Toggle Telekinesis Mode",
+  "key.cirno.open_cirno_gui": "Open Cirno Inventory",
+  "key.cirno.mount_cirno": "Mount Cirno While Holding Saddle"
+}

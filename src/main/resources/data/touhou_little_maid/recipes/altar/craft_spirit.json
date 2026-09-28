@@ -1,0 +1,29 @@
+{
+  "forge:conditions": [
+    {
+      "type": "cirno:cirno_variant_recipes_craftable"
+    }
+  ],
+  "type": "touhou_little_maid:altar_crafting",
+  "output": {
+    "type": "minecraft:item",
+    "nbt": {
+      "Item": {
+        "id": "cirno:cirno",
+        "Count": 1,
+        "tag": {
+          "Skin": "spirit"
+        }
+      }
+    }
+  },
+  "power": 0.8,
+  "ingredients": [
+    {"item": "minecraft:white_dye"},
+    {"item": "minecraft:ender_eye"},
+    {"item": "minecraft:ender_eye"},
+    {"item": "minecraft:golden_apple"},
+    {"item": "minecraft:golden_apple"},
+    {"item": "touhou_little_maid:photo"}
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "net.zhaiji.cirno.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "cirno.refmap.json",
+  "mixins": [
+    "MaidClearSleepTaskMixin",
+    "AbstractMaidContainerMixin"
+  ],
+  "client": [
+    "YsmPrincessCarryMixin",
+    "YsmCtrlFlyMixin",
+    "Ysm265CtrlFlyMixin",
+    "YsmGroundSpeedMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}

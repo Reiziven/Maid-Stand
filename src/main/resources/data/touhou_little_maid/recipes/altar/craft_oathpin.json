@@ -1,0 +1,38 @@
+{
+  "forge:conditions": [
+    {
+      "type": "cirno:oathpin_craftable"
+    }
+  ],
+  "type": "touhou_little_maid:altar_crafting",
+  "output": {
+    "type": "minecraft:item",
+    "nbt": {
+      "Item": {
+        "id": "cirno:oathpin",
+        "Count": 1
+      }
+    }
+  },
+  "power": 0.8,
+  "ingredients": [
+    {
+      "tag": "minecraft:flowers"
+    },
+    {
+      "tag": "minecraft:flowers"
+    },
+    {
+      "tag": "minecraft:flowers"
+    },
+    {
+      "item": "minecraft:cake"
+    },
+    {
+      "item": "minecraft:white_dye"
+    },
+    {
+      "item": "minecraft:white_dye"
+    }
+  ]
+}
