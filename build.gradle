@@ -1,0 +1,188 @@
+plugins {
+    id 'java-library'
+    id 'idea'
+    id 'eclipse'
+    id 'net.neoforged.moddev' version '2.0.148'
+}
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = mod_id + '_neoforge' + minecraft_version
+}
+
+java {
+    // Minecraft 1.21.1 requires Java 21
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+sourceSets {
+    main {
+        resources {
+            srcDir 'src/generated/resources'
+        }
+    }
+}
+
+repositories {
+    mavenLocal()
+    maven {
+        name = 'Curios API'
+        url = 'https://maven.theillusivec4.top/'
+        content { includeGroup 'top.theillusivec4.curios' }
+    }
+    maven {
+        name = 'GeckoLib'
+        url = 'https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/'
+        content { includeGroup 'software.bernie.geckolib' }
+    }
+    maven {
+        name = 'CurseMaven'
+        url = 'https://cursemaven.com'
+        content { includeGroup 'curse.maven' }
+    }
+    flatDir {
+        dir 'libs'
+    }
+}
+
+neoForge {
+    version = neo_version
+
+    if (project.hasProperty('parchment_mappings_version') && parchment_mappings_version) {
+        parchment {
+            minecraftVersion = parchment_minecraft_version
+            mappingsVersion = parchment_mappings_version
+        }
+    }
+
+    // Access transformers (also declared in neoforge.mods.toml)
+    accessTransformers.from('src/main/resources/META-INF/accesstransformer.cfg')
+
+    runs {
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+        client {
+            client()
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
+        server {
+            server()
+            programArgument '--nogui'
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
+        gameTestServer {
+            type = 'gameTestServer'
+            systemProperty 'neoforge.enabledGameTestNamespaces', mod_id
+        }
+        data {
+            data()
+            programArguments.addAll '--mod', mod_id, '--all',
+                    '--output', file('src/generated/resources/').getAbsolutePath(),
+                    '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+configurations {
+    localRuntime
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+// Jars dropped into ./libs take priority over the online repositories (fewer resolution problems).
+// File name patterns:  libs/geckolib-neoforge-1.21.1-*.jar   libs/touhoulittlemaid-*neoforge*.jar
+def libsJar = { String glob ->
+    def dir = file('libs')
+    if (!dir.exists()) return null
+    def matcher = java.nio.file.FileSystems.getDefault().getPathMatcher("glob:" + glob)
+    return dir.listFiles()?.findAll { it.isFile() && matcher.matches(it.toPath().fileName) }?.sort()?.reverse()?.find { true }
+}
+def geckolibJar = libsJar('geckolib-neoforge-*.jar')
+def tlmJar = libsJar('touhoulittlemaid-*neoforge*.jar')
+
+dependencies {
+    // NeoForge ships Mixin + MixinExtras; no MixinGradle / annotation processor / refmap needed.
+    // (Official Mojang mappings are used at runtime, so @Mixin targets need no remapping.)
+
+    // GeckoLib (required)
+    if (geckolibJar != null) {
+        implementation files(geckolibJar)
+    } else {
+        implementation "software.bernie.geckolib:geckolib-neoforge-${minecraft_version}:${geckolib_version}"
+    }
+
+    // Curios (optional at runtime): compile against the API only.
+    compileOnly "top.theillusivec4.curios:curios-neoforge:${curios_version}:api"
+    // Keep Curios in dev runs; comment out to test without Curios.
+    localRuntime "top.theillusivec4.curios:curios-neoforge:${curios_version}"
+
+    // Touhou Little Maid. CirnoEntity extends EntityMaid, so TLM is needed at compile time AND in dev runs.
+    if (tlmJar != null) {
+        compileOnly files(tlmJar)
+        localRuntime files(tlmJar)
+    } else {
+        compileOnly "curse.maven:${tlm_curse_project}:${tlm_curse_file}"
+        localRuntime "curse.maven:${tlm_curse_project}:${tlm_curse_file}"
+    }
+}
+
+// Expand properties into neoforge.mods.toml and pack.mcmeta
+tasks.named('processResources', ProcessResources).configure {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            neo_version            : neo_version,
+            neo_version_range      : neo_version_range,
+            loader_version_range   : loader_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+            mod_authors            : mod_authors,
+            mod_description        : mod_description,
+            curios_version_range   : curios_version_range,
+            geckolib_version_range : geckolib_version_range,
+            tlm_version_range      : tlm_version_range,
+    ]
+    inputs.properties replaceProperties
+
+    filesMatching(['META-INF/neoforge.mods.toml', 'pack.mcmeta']) {
+        expand replaceProperties
+    }
+}
+
+tasks.named('jar', Jar).configure {
+    manifest {
+        attributes([
+                "Specification-Title"     : mod_id,
+                "Specification-Vendor"    : mod_authors,
+                "Specification-Version"   : "1",
+                "Implementation-Title"    : project.name,
+                "Implementation-Version"  : project.version,
+                "Implementation-Vendor"   : mod_authors,
+                "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")
+        ])
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}
