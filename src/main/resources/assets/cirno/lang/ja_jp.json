@@ -1,0 +1,22 @@
+{
+  "item.cirno.cirno": "Cirno",
+  "item.cirno.cirno.tooltip": "にゃー!",
+  "item.cirno.oathpin": "誓いのヘアピン",
+  "item.cirno.oathpin.tooltip": "白い花びらに封じられた誓い。",
+  "item.cirno.oathpin.tooltip2": "彼女はもう、あなたの傍を離れない。",
+  "item.cirno.oathpin.tooltip3": "メインハンドに持つと、チルノパネル(Hを長押し)に「+ Add」が表示される。",
+  "item.cirno.oathpin.tooltip4": "自分のメイドを見つめて「+ Add」を押すと、コマンド式チルノに変身させる。",
+  "item.cirno.oathpin.tooltip5": "コマンド式チルノにCuriousアイテムは不要。空きスロットを使用し、サバイバルでも使える。",
+  "item.cirno.solyn": "Solyn",
+  "item.cirno.solyn.tooltip": "星からやってきた",
+  "item.cirno.spirit": "Spirit",
+  "item.cirno.spirit.tooltip": "生きている存在の身体を共有しなければ存在できない霊",
+  "item.cirno.tatsumaki": "Tatsumaki",
+  "item.cirno.tatsumaki.tooltip": "強力な念動力を持つ竜巻の恐怖",
+  "creativetab.cirno.cirno_tab": "Cirno",
+  "key.category.cirno": "一人では生きられない妖精",
+  "key.cirno.toggle_companion_visible": "チルノの表示を切り替える",
+  "key.cirno.toggle_telekinesis_mode": "念動力モードを切り替える",
+  "key.cirno.open_cirno_gui": "チルノのインベントリを開く",
+  "key.cirno.mount_cirno": "サドルを持ってチルノに乗る"
+}

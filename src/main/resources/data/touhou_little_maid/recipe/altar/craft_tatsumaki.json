@@ -1,0 +1,40 @@
+{
+  "neoforge:conditions": [
+    {
+      "type": "cirno:cirno_variant_recipes_craftable"
+    }
+  ],
+  "type": "touhou_little_maid:altar_recipe_serializers",
+  "category": "misc",
+  "entity": "minecraft:item",
+  "group": "altar_recipe",
+  "ingredients": [
+    {
+      "item": "minecraft:lime_dye"
+    },
+    {
+      "item": "minecraft:ender_eye"
+    },
+    {
+      "item": "minecraft:ender_eye"
+    },
+    {
+      "item": "minecraft:golden_apple"
+    },
+    {
+      "item": "minecraft:golden_apple"
+    },
+    {
+      "item": "touhou_little_maid:photo"
+    }
+  ],
+  "lang": "jei.touhou_little_maid.altar_craft.item_craft.result",
+  "power": 0.8,
+  "result": {
+    "count": 1,
+    "id": "cirno:cirno",
+    "components": {
+      "cirno:skin": "tatsumaki"
+    }
+  }
+}

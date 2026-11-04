@@ -1,0 +1,37 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"spirit.animation": {
+			"loop": "hold_on_last_frame",
+			"bones": {
+				"LeftTear": {
+					"scale": 0
+				},
+				"RightTear": {
+					"scale": 0
+				},
+				"_": {
+					"scale": 0
+				},
+				"X": {
+					"scale": 0
+				},
+				"Read": {
+					"scale": 0
+				},
+				"laugh": {
+					"scale": 0
+				},
+				"delta": {
+					"scale": 0
+				},
+				"ysmGlow4": {
+					"scale": 0
+				},
+				"MRing": {
+					"scale": 0
+				}
+			}
+		}
+	}
+}

@@ -1,0 +1,16 @@
+{
+	"format_version": "1.8.0",
+	"animations": {
+		"tatsumaki.animation.json": {
+			"loop": "hold_on_last_frame",
+			"bones": {
+				"ysmGlowbone": {
+					"scale": 0
+				},
+				"ysmGlowbone18": {
+					"scale": 0
+				}
+			}
+		}
+	}
+}
