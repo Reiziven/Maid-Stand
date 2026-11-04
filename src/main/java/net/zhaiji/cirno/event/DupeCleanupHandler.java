@@ -90,6 +90,18 @@ public class DupeCleanupHandler {
         // player's entity id staggers the scans so they don't all land on the same tick.
         int phase = player.tickCount + player.getId();
         if (phase % CirnoStateAccess.DUPE_SCAN_INTERVAL_TICKS != 0) return;
+        // This is a best-effort janitor. It pokes every container/item-handler in the loaded
+        // area, which in a big modpack includes plenty of third-party code. If any of it throws
+        // it must never take down the player tick (a crash report) or skip the rest of Cirno's
+        // per-tick work, so the whole sweep is isolated.
+        try {
+            tickDupeCleanupUnsafe(player, phase);
+        } catch (RuntimeException | LinkageError e) {
+            CirnoStorageHandler.safely("dupe cleanup sweep", () -> { throw new RuntimeException(e); });
+        }
+    }
+
+    private static void tickDupeCleanupUnsafe(Player player, int phase) {
         boolean scanOtherDimensions = (phase / CirnoStateAccess.DUPE_SCAN_INTERVAL_TICKS) % CirnoStateAccess.DUPE_SCAN_OTHER_DIM_EVERY == 0;
 
         // A summon requested while its storage item was in an unloaded chunk is
@@ -137,7 +149,10 @@ public class DupeCleanupHandler {
         scanInventoryList(player.getInventory().armor, ownerUUID, liveUuids);
 
         // ── Current dimension: bounded scan around the player ─────────────────
-        int loadedAreaRadius = CirnoStorageHandler.nearbyChunkRadius(player) * 16;
+        // Capped: a stray storage item only matters near the player, and at a server view
+        // distance of 24-32 the uncapped radius meant a ~1000-block entity query plus a capability
+        // probe of every block entity, per player, every scan.
+        int loadedAreaRadius = Math.min(CirnoStorageHandler.nearbyChunkRadius(player), 8) * 16;
         scanLevelBounded(player.level(), ownerUUID, liveUuids,
                 player.getBoundingBox().inflate(loadedAreaRadius),
                 player.blockPosition(), loadedAreaRadius);

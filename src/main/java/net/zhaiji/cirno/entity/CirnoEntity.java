@@ -110,8 +110,18 @@ public class CirnoEntity extends EntityMaid {
     // ── Flight animation state (jump / fall / fly / elytra) ─────────────────
     // Picked server-side by CirnoFlightTracker from what the owner is doing, then synced so the
     // client's animation predicates (CirnoFlightAnimations) can read it. NONE = hands off.
+    //
+    // The three synched-data accessors use FIXED ids instead of SynchedEntityData.defineId().
+    // defineId() hands out "next free id for this class chain" at class-init time. Maid add-ons
+    // (e.g. TLM Spell / "maidspell") register their own accessors on EntityMaid LATER, after this
+    // class was already initialised, and receive the very same numbers — so creating a Cirno then
+    // crashed with "IllegalArgumentException: Duplicate id value for 75!" in defineSynchedData
+    // (a "Ticking player" crash on summon). That only happens in packs containing such an add-on
+    // and depends on class-load order, which is why it showed up in big modpacks only.
+    // Ids must be <= 254; maid + add-ons never get anywhere near this range.
+    private static final int DATA_ID_BASE = 240;
     private static final EntityDataAccessor<Byte> DATA_FLIGHT_STATE =
-            SynchedEntityData.defineId(CirnoEntity.class, EntityDataSerializers.BYTE);
+            new EntityDataAccessor<>(DATA_ID_BASE, EntityDataSerializers.BYTE);
     // How far under her feet a solid block still counts as "she's standing on something". A bit more
     // than FOLLOW_Y_OFFSET, so her normal hover height, half-block stairs and the follow-lerp lag
     // after a landing don't read as "no floor".
@@ -150,11 +160,11 @@ public class CirnoEntity extends EntityMaid {
     // Whether she currently has a saddle equipped — a rider only ever appears via
     // Entity#startRiding once this is true. Persisted so she stays saddled across saves.
     private static final EntityDataAccessor<Boolean> DATA_MOUNT_SADDLED =
-            SynchedEntityData.defineId(CirnoEntity.class, EntityDataSerializers.BOOLEAN);
+            new EntityDataAccessor<>(DATA_ID_BASE + 1, EntityDataSerializers.BOOLEAN);
     // True while a mounted rider currently has flight toggled on (double-tap jump).
     // Synced purely so client-side rendering/animation can react to it.
     private static final EntityDataAccessor<Boolean> DATA_MOUNT_FLYING =
-            SynchedEntityData.defineId(CirnoEntity.class, EntityDataSerializers.BOOLEAN);
+            new EntityDataAccessor<>(DATA_ID_BASE + 2, EntityDataSerializers.BOOLEAN);
     // Keys used in the rider's persistent data to save/restore their flight ability
     // across the mount/dismount so survival players can't keep permanent creative-style
     // flight after hopping off (see grantFlightAbility / revokeFlightAbility).
@@ -1293,7 +1303,7 @@ public class CirnoEntity extends EntityMaid {
         cirno.setOwnerPlayer(player);
         cirno.moveTo(player.getX(), player.getY(), player.getZ(),
                 player.getYRot(), 0f);
-        level.addFreshEntity(cirno);
+        if (!net.zhaiji.cirno.util.CirnoSpawnGuard.add(level, cirno)) return null;
         return cirno.getUUID();
     }
 

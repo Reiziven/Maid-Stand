@@ -1,6 +1,5 @@
 package net.zhaiji.cirno.item;
 
-import net.minecraft.client.renderer.BlockEntityWithoutLevelRenderer;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Player;
@@ -9,17 +8,17 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.level.Level;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
-import net.zhaiji.cirno.client.render.CirnoItemRenderer;
-import net.zhaiji.cirno.config.CirnoCommonConfig;
+import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.zhaiji.cirno.client.animation.CirnoItemAnimations;
+import net.zhaiji.cirno.client.render.CirnoItemClientExtensions;
 import org.jetbrains.annotations.Nullable;
 import software.bernie.geckolib.animatable.GeoItem;
 import software.bernie.geckolib.animatable.SingletonGeoAnimatable;
 import software.bernie.geckolib.core.animatable.instance.AnimatableInstanceCache;
 import software.bernie.geckolib.core.animation.AnimatableManager;
 import software.bernie.geckolib.core.animation.AnimationController;
-import software.bernie.geckolib.core.animation.RawAnimation;
-import software.bernie.geckolib.core.object.PlayState;
 import software.bernie.geckolib.util.GeckoLibUtil;
 
 import java.util.List;
@@ -76,83 +75,18 @@ public class CirnoItem extends Item implements GeoItem {
 
     // ── GeoItem ──────────────────────────────────────────────────────────────
 
-    private static final RawAnimation ANIM_IDLE  = RawAnimation.begin().thenLoop("idle");
-    private static final RawAnimation ANIM_WALK  = RawAnimation.begin().thenLoop("walk");
-    private static final RawAnimation ANIM_RUN   = RawAnimation.begin().thenLoop("run");
-    private static final RawAnimation ANIM_SNEAK = RawAnimation.begin().thenLoop("sneak");
-    private static final RawAnimation ANIM_JUMP  = RawAnimation.begin().thenLoop("jump");
-    private static final RawAnimation ANIM_SWIM  = RawAnimation.begin().thenLoop("swim");
-    private static final RawAnimation ANIM_SLEEP = RawAnimation.begin().thenPlay("sleep");
-
     /**
-     * The single-clip name inside each non-default skin's own animation file
-     * (they only ship one static "hide unused bones" pose each, unlike the
-     * full idle/walk/run/... set the default Cirno skin has). Keyed by skin id.
+     * Animation controllers are purely a client rendering concern. On a dedicated server
+     * nothing ever renders this item, so we register nothing — and, crucially, we never
+     * touch {@link CirnoItemAnimations} (which references client-only classes). Keeping
+     * all client types out of THIS class is what lets it load on a dedicated server.
      */
-    private static String poseAnimationName(String skin) {
-        return switch (skin) {
-            case "spirit" -> "spirit.animation";
-            case "tatsumaki" -> "tatsumaki.animation.json";
-            default -> skin; // "solyn"'s clip is literally named "solyn"
-        };
-    }
-
     @Override
     public void registerControllers(AnimatableManager.ControllerRegistrar controllers) {
-        controllers.add(new AnimationController<>(this, "controller", 2, state -> {
-            // Which stack is actually being rendered right now (GeckoLib populates
-            // this for item animatables) tells us which skin is active, since
-            // CirnoItemRenderer swaps geo/texture/animation per-stack.
-            ItemStack renderedStack = state.getData(software.bernie.geckolib.constant.DataTickets.ITEMSTACK);
-            String skin = renderedStack != null ? getSkin(renderedStack) : DEFAULT_SKIN;
-
-            if (!DEFAULT_SKIN.equals(skin)) {
-                // Non-default skins only have a single static pose right now —
-                // no movement-reactive animation set to switch between.
-                state.getController().setAnimation(RawAnimation.begin().thenPlay(poseAnimationName(skin)));
-                return PlayState.CONTINUE;
-            }
-
-            // GeoItem state doesn't carry entity context, so we pull it from the
-            // living entity that is currently wearing the item via the Minecraft client.
-            net.minecraft.world.entity.LivingEntity entity = null;
-            if (net.minecraft.client.Minecraft.getInstance().player != null) {
-                // Check if any nearby entity (including the local player) is wearing this item.
-                // For SingletonGeoAnimatable items the state extracts the wearer from extra data
-                // set by the Curio tick; fall back to the local player as the most common case.
-                entity = net.minecraft.client.Minecraft.getInstance().player;
-            }
-
-            if (entity == null) {
-                state.getController().setAnimation(ANIM_IDLE);
-                return PlayState.CONTINUE;
-            }
-
-            if (entity.isSleeping()) {
-                state.getController().setAnimation(ANIM_SLEEP);
-                return PlayState.CONTINUE;
-            }
-            if (entity.isSwimming() || entity.isUnderWater()) {
-                state.getController().setAnimation(ANIM_SWIM);
-                return PlayState.CONTINUE;
-            }
-            if (entity.isCrouching()) {
-                state.getController().setAnimation(ANIM_SNEAK);
-                return PlayState.CONTINUE;
-            }
-
-            double speed = entity.getDeltaMovement().horizontalDistanceSqr();
-            if (entity.isSprinting() && speed > 0.01) {
-                state.getController().setAnimation(ANIM_RUN);
-            } else if (!entity.onGround() && entity.getDeltaMovement().y > 0.05) {
-                state.getController().setAnimation(ANIM_JUMP);
-            } else if (speed > 0.001) {
-                state.getController().setAnimation(ANIM_WALK);
-            } else {
-                state.getController().setAnimation(ANIM_IDLE);
-            }
-            return PlayState.CONTINUE;
-        }));
+        if (FMLEnvironment.dist != Dist.CLIENT) {
+            return;
+        }
+        controllers.add(new AnimationController<>(this, "controller", 2, CirnoItemAnimations::handle));
     }
 
     @Override
@@ -160,19 +94,11 @@ public class CirnoItem extends Item implements GeoItem {
         return cache;
     }
 
-    // Tell Forge to use our GeckoLib BEWLR for in-hand / GUI rendering
+    // Tell Forge to use our GeckoLib BEWLR for in-hand / GUI rendering. The extension itself
+    // lives in a client-only class that is only instantiated here, on the client.
     @Override
     public void initializeClient(Consumer<IClientItemExtensions> consumer) {
-        consumer.accept(new IClientItemExtensions() {
-            private CirnoItemRenderer renderer;
-
-            @Override
-            public BlockEntityWithoutLevelRenderer getCustomRenderer() {
-                if (renderer == null)
-                    renderer = new CirnoItemRenderer();
-                return renderer;
-            }
-        });
+        consumer.accept(new CirnoItemClientExtensions());
     }
 
     // Curios behaviour (equip / tick) lives in compat.curios.CirnoCurioItem and is only

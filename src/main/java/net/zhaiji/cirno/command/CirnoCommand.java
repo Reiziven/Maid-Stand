@@ -32,6 +32,13 @@ import net.zhaiji.cirno.entity.CirnoEntity;
 public class CirnoCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        // Separate root, no permission requirement: lets any player (not just ops) report why
+        // Cirno won't spawn for them. Only ever inspects / test-spawns for the caller.
+        dispatcher.register(Commands.literal("cirnodiag").executes(context -> {
+            ServerPlayer player = requirePlayer(context);
+            return player == null ? 0 : net.zhaiji.cirno.event.CirnoDiagnostics.run(player);
+        }));
+
         dispatcher.register(Commands.literal("cirno")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("add")

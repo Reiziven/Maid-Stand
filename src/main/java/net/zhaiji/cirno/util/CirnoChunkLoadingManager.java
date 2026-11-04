@@ -55,9 +55,23 @@ public final class CirnoChunkLoadingManager {
      * the moment the relevant Cirno starts ticking again (or the watchdog reasserts it).
      */
     public static void registerCallback() {
-        ForgeChunkManager.setForcedChunkLoadingCallback(Cirno.MOD_ID, (tickets, level) -> {
-            // No re-forcing on load — see class javadoc.
+        ForgeChunkManager.setForcedChunkLoadingCallback(Cirno.MOD_ID, (level, tickets) -> {
+            // Forge PERSISTS entity tickets in the level's saved data and re-forces every one
+            // that a validation callback doesn't remove. Doing nothing here (as this used to)
+            // therefore did NOT "leave them unforced": every Cirno chunk ticket ever created
+            // was force-loaded again on every restart, forever — the owning Cirno UUIDs are
+            // long gone, so nothing ever released them. On a long-lived modpack world that is a
+            // growing pile of permanently-ticking chunks. Drop them all; live Cirnos re-create
+            // their own ticket the moment they tick.
+            for (java.util.UUID owner : new java.util.ArrayList<>(tickets.getEntityTickets().keySet())) {
+                tickets.removeAllTickets(owner);
+            }
         });
+    }
+
+    /** Forget every in-memory ticket record (server stopped: the levels they point at are gone). */
+    public static void clearAll() {
+        ACTIVE.clear();
     }
 
     /**

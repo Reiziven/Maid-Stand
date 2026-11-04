@@ -226,47 +226,81 @@ public class CirnoStorageHandler {
     static List<CirnoStateAccess.CirnoSlot> collectCirnoSlots(Player player) {
         List<CirnoStateAccess.CirnoSlot> slots = new ArrayList<>();
 
-        addIndexedListSlots(slots, player.getInventory().items);
-        addIndexedListSlots(slots, player.getInventory().offhand);
-        addIndexedListSlots(slots, player.getInventory().armor);
+        // Every source below is isolated: in a large modpack, some third-party container,
+        // item-handler capability or entity can throw (or misbehave) when poked from here.
+        // That used to abort the WHOLE lookup — and since this runs on the summon path, a
+        // single bad modded block entity anywhere in view distance meant Cirno never
+        // spawned. Now a failing source is skipped and the rest still count.
+        safely("player inventory", () -> {
+            addIndexedListSlots(slots, player.getInventory().items);
+            addIndexedListSlots(slots, player.getInventory().offhand);
+            addIndexedListSlots(slots, player.getInventory().armor);
+        });
 
-        if (player.containerMenu != null) {
-            for (Slot slot : player.containerMenu.slots) {
-                slots.add(new CirnoStateAccess.CirnoSlot(slot::getItem, slot::set));
-            }
-        }
-
-        addContainerSlots(slots, player.getEnderChestInventory());
-
-        for (Container container : collectNearbyContainers(player)) {
-            addContainerSlots(slots, container);
-        }
-
-        for (LevelChunk chunk : loadedChunksAroundPlayer(player)) {
-            for (BlockEntity be : chunk.getBlockEntities().values()) {
-                if (be instanceof Container) continue;
-                be.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler ->
-                        addItemHandlerSlots(slots, handler));
-            }
-        }
-
-        addNearbyEntityInventorySlots(slots, player);
-
-        UUID ownerUUID = player.getUUID();
-        List<ItemEntity> nearbyItems = player.level().getEntitiesOfClass(
-                ItemEntity.class, player.getBoundingBox().inflate(nearbyChunkRadius(player) * 16.0),
-                e -> CirnoStateAccess.isCirnoStorageItem(e.getItem(), ownerUUID));
-        for (ItemEntity itemEntity : nearbyItems) {
-            slots.add(new CirnoStateAccess.CirnoSlot(itemEntity::getItem, replacement -> {
-                if (replacement.isEmpty()) {
-                    itemEntity.discard();
-                } else {
-                    itemEntity.setItem(replacement);
+        safely("open container menu", () -> {
+            if (player.containerMenu != null) {
+                for (Slot slot : player.containerMenu.slots) {
+                    slots.add(new CirnoStateAccess.CirnoSlot(slot::getItem, slot::set));
                 }
-            }));
-        }
+            }
+        });
+
+        safely("ender chest", () -> addContainerSlots(slots, player.getEnderChestInventory()));
+
+        safely("nearby containers", () -> {
+            for (Container container : collectNearbyContainers(player)) {
+                safely("container " + container.getClass().getName(), () -> addContainerSlots(slots, container));
+            }
+        });
+
+        safely("nearby item handlers", () -> {
+            for (LevelChunk chunk : loadedChunksAroundPlayer(player)) {
+                for (BlockEntity be : new ArrayList<>(chunk.getBlockEntities().values())) {
+                    if (be instanceof Container) continue;
+                    safely("block entity " + be.getClass().getName(), () ->
+                            be.getCapability(ForgeCapabilities.ITEM_HANDLER).ifPresent(handler ->
+                                    addItemHandlerSlots(slots, handler)));
+                }
+            }
+        });
+
+        safely("nearby entity inventories", () -> addNearbyEntityInventorySlots(slots, player));
+
+        safely("dropped items", () -> {
+            UUID ownerUUID = player.getUUID();
+            List<ItemEntity> nearbyItems = player.level().getEntitiesOfClass(
+                    ItemEntity.class, player.getBoundingBox().inflate(nearbyChunkRadius(player) * 16.0),
+                    e -> CirnoStateAccess.isCirnoStorageItem(e.getItem(), ownerUUID));
+            for (ItemEntity itemEntity : nearbyItems) {
+                slots.add(new CirnoStateAccess.CirnoSlot(itemEntity::getItem, replacement -> {
+                    if (replacement.isEmpty()) {
+                        itemEntity.discard();
+                    } else {
+                        itemEntity.setItem(replacement);
+                    }
+                }));
+            }
+        });
 
         return slots;
+    }
+
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
+    /** Sources that already logged a failure, so a broken modded block doesn't spam the log every scan. */
+    private static final Set<String> REPORTED_SCAN_FAILURES =
+            java.util.Collections.newSetFromMap(new java.util.concurrent.ConcurrentHashMap<>());
+
+    /** Runs one scan step; a failure is logged once per source and then ignored. */
+    static void safely(String what, Runnable step) {
+        try {
+            step.run();
+        } catch (RuntimeException | LinkageError e) {
+            if (REPORTED_SCAN_FAILURES.size() < 64 && REPORTED_SCAN_FAILURES.add(what)) {
+                LOGGER.warn("Cirno: storage scan skipped '{}' because it threw {}. "
+                        + "Cirno keeps working; this source is just ignored.", what, e.toString());
+            }
+        }
     }
 
 
@@ -280,7 +314,11 @@ public class CirnoStorageHandler {
     static boolean isStoredInExternalItem(Player player) {
         UUID ownerUUID = player.getUUID();
         for (CirnoStateAccess.CirnoSlot slot : collectCirnoSlots(player)) {
-            if (CirnoStateAccess.isCirnoStorageItem(slot.getter().get(), ownerUUID)) return true;
+            try {
+                if (CirnoStateAccess.isCirnoStorageItem(slot.getter().get(), ownerUUID)) return true;
+            } catch (RuntimeException ignored) {
+                // A single misbehaving slot must not decide whether Cirno can be summoned.
+            }
         }
         return false;
     }

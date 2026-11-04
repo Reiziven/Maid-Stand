@@ -70,6 +70,7 @@ public class CirnoCommonConfig {
     // paths (H key, TLM smart slab / photo, death system, dimension change) may
     // remove her, matching what ANChorCore does for anchor-equipped maids.
     public static boolean cirnoUnloadProtection;
+    public static boolean cirnoForceJoin;
     public static boolean cirnoPartOfOwner;
     /** Distance (blocks) beyond which she's teleported straight to her owner, independent
      *  of cirnoFollowsOwner (which only governs the tight drag-along positioning). Also the
@@ -362,6 +363,12 @@ public class CirnoCommonConfig {
                     "Has no effect on /kill, the death system when cirnoCanDie = true, or explicit hide/store actions.")
             .define("cirnoUnloadProtection", true);
 
+    private static final ForgeConfigSpec.BooleanValue CIRNO_FORCE_JOIN = BUILDER
+            .comment("When true, if another mod cancels Cirno's EntityJoinLevelEvent while THIS mod is deliberately " +
+                    "spawning her, that cancellation is overridden so she still appears. Large modpacks often contain " +
+                    "entity-filtering mods that refuse unknown entity types (a normal maid passes, Cirno doesn't).")
+            .define("cirnoForceJoin", true);
+
     private static final ForgeConfigSpec.BooleanValue CIRNO_AUTO_SAVE_ENABLED = BUILDER
             .comment("Periodically back up Cirno's NBT (inventory, equipment, etc.) to a durable location " +
                     "(the owning player's data, and the Cirno item when she's linked to one) while she's " +
@@ -556,6 +563,7 @@ public class CirnoCommonConfig {
             cirnoAutoSaveEnabled = CIRNO_AUTO_SAVE_ENABLED.get();
             cirnoAutoSaveIntervalTicks = CIRNO_AUTO_SAVE_INTERVAL_TICKS.get();
             cirnoUnloadProtection = CIRNO_UNLOAD_PROTECTION.get();
+            cirnoForceJoin = CIRNO_FORCE_JOIN.get();
             cirnoMaxLeashDistance = CIRNO_MAX_LEASH_DISTANCE.get();
             cirnoPartOfOwner = CIRNO_PART_OF_OWNER.get();
             requireCompanionForBuffs = REQUIRE_COMPANION_FOR_BUFFS_VALUE.get();

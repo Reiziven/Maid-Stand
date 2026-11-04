@@ -54,6 +54,14 @@ public class CommonEventManager {
         gameBus.addListener(CirnoStorageHandler::handlerContainerOpen);
 
         gameBus.addListener(CommonEventManager::handlerRegisterCommands);
+
+        // Must run last and must still see cancelled events — see CirnoSpawnGuard.
+        gameBus.addListener(EventPriority.LOWEST, true, net.minecraftforge.event.entity.EntityJoinLevelEvent.class,
+                net.zhaiji.cirno.util.CirnoSpawnGuard::onEntityJoin);
+
+        // Singleplayer keeps the JVM alive between worlds; drop references to the old world's levels.
+        gameBus.addListener((net.minecraftforge.event.server.ServerStoppedEvent e) ->
+                net.zhaiji.cirno.util.CirnoChunkLoadingManager.clearAll());
     }
 
     public static void handlerRegisterCommands(RegisterCommandsEvent event) {

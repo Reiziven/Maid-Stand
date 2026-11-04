@@ -136,6 +136,11 @@ public class PlayerTickHandler {
         // Post-login: keep looking for the already-summoned Cirno before ever replacing her.
         PlayerLifecycleHandler.tickLoginVerify(player);
 
+        // Retry a failed / skipped equip-or-login summon instead of leaving her missing forever.
+        if (curioEquipped) {
+            CompanionLifecycleHandler.tickEnsureCompanion(player, curioStack);
+        }
+
         // Cirno revive only relevant when curio is equipped
         if (curioBuffsActive) {
             CompanionLifecycleHandler.tickCirnoRevive(player);

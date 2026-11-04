@@ -180,7 +180,12 @@ public class PlayerLifecycleHandler {
             moved.load(snapshot);
             moved.setUUID(cirno.getUUID());
             moved.moveTo(player.getX(), player.getY(), player.getZ(), player.getYRot(), player.getXRot());
-            destination.addFreshEntity(moved);
+            if (!net.zhaiji.cirno.util.CirnoSpawnGuard.add(destination, moved)) {
+                // The destination refused the join. Removing the original now would delete
+                // her from the world entirely, so keep the original and give up the transfer.
+                moved.discardDuplicate();
+                return null;
+            }
 
             cirno.allowNextRemoval();
             cirno.remove(Entity.RemovalReason.CHANGED_DIMENSION);
@@ -284,7 +289,7 @@ public class PlayerLifecycleHandler {
             return;
         }
 
-        CompanionLifecycleHandler.spawnCompanion(player, stack);
+        CompanionLifecycleHandler.spawnCompanionSafely(player, stack);
     }
 
     /** How long after login we keep looking for the tracked Cirno before replacing her (5 s). */
@@ -331,7 +336,7 @@ public class PlayerLifecycleHandler {
         }
         if (timedOut) {
             CirnoStateAccess.clearCompanionUUID(stack);
-            CompanionLifecycleHandler.spawnCompanion(player, stack);
+            CompanionLifecycleHandler.spawnCompanionSafely(player, stack);
         }
     }
 

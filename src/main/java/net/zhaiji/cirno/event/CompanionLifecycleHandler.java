@@ -69,6 +69,8 @@ import java.util.function.Supplier;
 
 public class CompanionLifecycleHandler {
 
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
     // ── Curio equip / unequip ─────────────────────────────────────────────────
 
     /** Called by the Curios hook (only registered when Curios is installed). */
@@ -87,7 +89,7 @@ public class CompanionLifecycleHandler {
             // spawn automatically once the timer fires in tickCirnoRevive().
             if (CirnoCommonConfig.companionEntityEnabled && CompatManager.isTLMLoad()
                     && player.getPersistentData().getInt(CirnoStateAccess.NBT_CIRNO_REVIVE_TICKS_LEFT) <= 0) {
-                spawnCompanion(player, toStack);
+                spawnCompanionSafely(player, toStack);
             }
         } else if (wasEquipped && !isEquipped) {
             // Unequipped: strip buffs/telekinesis only if no command Cirno is still
@@ -159,6 +161,17 @@ public class CompanionLifecycleHandler {
                 break;
             }
         }
+        // "Visible" per the stack flag but not actually in the world (a spawn that failed, a join
+        // another mod refused, ...): pressing H used to HIDE a Cirno that doesn't exist, so the
+        // player saw H do nothing and had to press it twice. Summon her instead.
+        if (curioVisible && !anyCommandLive && !isCurioCompanionPresent(player, curioStack)
+                && player.getPersistentData().getInt(CirnoStateAccess.NBT_CIRNO_REVIVE_TICKS_LEFT) <= 0
+                && !CirnoStateAccess.requiresItemRevive(curioStack)) {
+            spawnCompanion(player, curioStack, true);
+            sendVisibilitySync(player, false);
+            return;
+        }
+
         boolean hidingEverything = curioVisible || anyCommandLive;
 
         if (curioStack != null) {
@@ -194,6 +207,19 @@ public class CompanionLifecycleHandler {
         }
 
         sendVisibilitySync(player, hidingEverything);
+    }
+
+
+
+    /** True if the curio's tracked Cirno is alive in some currently loaded level. */
+    private static boolean isCurioCompanionPresent(Player player, ItemStack stack) {
+        UUID uuid = CirnoStateAccess.getCompanionUUID(stack);
+        if (uuid == null || player.getServer() == null) return false;
+        for (ServerLevel level : player.getServer().getAllLevels()) {
+            Entity e = level.getEntity(uuid);
+            if (e instanceof CirnoEntity cirno && cirno.isAlive()) return true;
+        }
+        return false;
     }
 
 
@@ -293,10 +319,36 @@ public class CompanionLifecycleHandler {
      * Blocks spawning if Cirno is stored in an external item (smart slab / photo).
      */
     public static void spawnCompanion(Player player, ItemStack stack) {
+        spawnCompanion(player, stack, false);
+    }
+
+    /**
+     * Event-driven callers (curio equip, login, revive timer) run inside someone else's event or
+     * tick. An exception escaping from here is a "Ticking player" server crash / disconnect, so
+     * they go through this wrapper: the failure is logged with its full cause and the
+     * self-healing retry (see tickEnsureCompanion) tries again later.
+     */
+    static void spawnCompanionSafely(Player player, ItemStack stack) {
+        try {
+            spawnCompanion(player, stack, false);
+        } catch (RuntimeException | LinkageError e) {
+            LOGGER.error("Cirno: summoning her for {} failed with an exception — she will be retried automatically. "
+                    + "Please report this stack trace.", player.getGameProfile().getName(), e);
+        }
+    }
+
+    /**
+     * @param skipStorageCheck skip the "is she stored in a smart slab / photo / film?" world scan.
+     *                         Used by the self-healing retry, which only ever runs for a Cirno that is
+     *                         NOT hidden and does not require an item revive — i.e. one that by
+     *                         definition isn't stored anywhere — so the scan there can only cost time
+     *                         or throw, never prevent a duplicate.
+     */
+    public static void spawnCompanion(Player player, ItemStack stack, boolean skipStorageCheck) {
         if (player.level().isClientSide || player.getServer() == null) return;
 
         // Block spawn if Cirno is stored externally — she's not missing, just in a different container
-        if (CirnoStorageHandler.isStoredInExternalItem(player)) {
+        if (!skipStorageCheck && CirnoStorageHandler.isStoredInExternalItem(player)) {
             return;
         }
 
@@ -368,33 +420,60 @@ public class CompanionLifecycleHandler {
             savedData = CirnoStateAccess.getCompanionSavedData(stack);
         }
         if (savedData != null) {
-            UUID newUUID = cirno.getUUID();
             UUID ownerUUID = player.getUUID();
-            cirno.readAdditionalSaveData(savedData);
-            // Re-apply identity — readAdditionalSaveData may have clobbered these
-            cirno.setOwnerUUID(ownerUUID);
-            cirno.setTame(true);
-            // UUID is final on entities, so the new UUID sticks automatically
-            // Re-stamp ownerPlayerUUID field via setOwnerPlayer
-            cirno.setOwnerPlayer(player);
+            boolean restored = true;
+            try {
+                cirno.readAdditionalSaveData(savedData);
+            } catch (RuntimeException | LinkageError e) {
+                // The snapshot can't be read (written by another version of this mod, or
+                // by a TLM addon that is no longer present, ...). Spawning her blank is far
+                // better than never spawning her at all.
+                LOGGER.error("Cirno: could not restore her saved data for {} — spawning a fresh Cirno instead.",
+                        player.getGameProfile().getName(), e);
+                cirno.discardDuplicate();
+                cirno = InitEntity.CIRNO.get().create(serverLevel);
+                if (cirno == null) return;
+                cirno.setOwnerPlayer(player);
+                cirno.moveTo(player.getX(), player.getY(), player.getZ(), player.getYRot(), 0f);
+                restored = false;
+            }
 
-            // A saved identity may still be alive in another loaded level (for
-            // example, an item copy). Keep that entity and truly discard this
-            // new candidate without running its save/capture hooks.
-            if (savedData.hasUUID("UUID")) {
-                Entity active = CirnoStateAccess.findLoadedEntity(player, savedData.getUUID("UUID"));
-                if (active instanceof CirnoEntity existing && existing.isAlive()) {
-                    cirno.discardDuplicate();
-                    existing.setOwnerPlayer(player);
-                    existing.setInvisible(CirnoStateAccess.getCompanionHidden(stack));
-                    existing.wakeFromMaidBed();
-                    CirnoStateAccess.setCompanionUUID(stack, existing.getUUID());
-                    return;
+            if (restored) {
+                // Re-apply identity — readAdditionalSaveData may have clobbered these
+                cirno.setOwnerUUID(ownerUUID);
+                cirno.setTame(true);
+                // UUID is final on entities, so the new UUID sticks automatically
+                // Re-stamp ownerPlayerUUID field via setOwnerPlayer
+                cirno.setOwnerPlayer(player);
+
+                // A saved identity may still be alive in another loaded level (for
+                // example, an item copy). Keep that entity and truly discard this
+                // new candidate without running its save/capture hooks.
+                if (savedData.hasUUID("UUID")) {
+                    Entity active = CirnoStateAccess.findLoadedEntity(player, savedData.getUUID("UUID"));
+                    if (active instanceof CirnoEntity existing && existing.isAlive()) {
+                        cirno.discardDuplicate();
+                        existing.setOwnerPlayer(player);
+                        existing.setInvisible(CirnoStateAccess.getCompanionHidden(stack));
+                        existing.wakeFromMaidBed();
+                        CirnoStateAccess.setCompanionUUID(stack, existing.getUUID());
+                        return;
+                    }
                 }
             }
         }
 
-        serverLevel.addFreshEntity(cirno);
+        // addFreshEntity returns false when the join is refused — another mod cancelled
+        // EntityJoinLevelEvent (entity-limit / spawn-control / claim mods are common in big
+        // packs), a UUID clash, etc. It used to be ignored, so the stack was stamped with the
+        // UUID of an entity that never existed and Cirno was silently "summoned" into nothing.
+        if (!net.zhaiji.cirno.util.CirnoSpawnGuard.add(serverLevel, cirno)) {
+            LOGGER.warn("Cirno: the world refused to add her for {} at {} in {} (another mod cancelled "
+                            + "the entity join?). Will retry shortly.",
+                    player.getGameProfile().getName(), player.blockPosition(), serverLevel.dimension().location());
+            cirno.discardDuplicate();
+            return;
+        }
         // The NBT snapshot restored above can carry over a sleeping pose if she
         // was captured mid-sleep — make sure a freshly (re)spawned companion
         // never appears already stuck asleep in front of the owner.
@@ -782,9 +861,100 @@ public class CompanionLifecycleHandler {
         CirnoStateAccess.setHiddenByPlayer(stack, false);
         CirnoStateAccess.setRequiresItemRevive(stack, false);
         if (CirnoCommonConfig.companionEntityEnabled && CompatManager.isTLMLoad()) {
-            spawnCompanion(player, stack);
+            spawnCompanionSafely(player, stack);
         }
         player.displayClientMessage(Component.literal("§b[Cirno] She's back!"), true);
+    }
+
+
+
+    // ── Self-healing summon ───────────────────────────────────────────────────
+
+    private static final String NBT_ENSURE_BACKOFF = "CirnoEnsureBackoff";
+    private static final String NBT_ENSURE_FAILS = "CirnoEnsureFails";
+    /** Ticks between checks (the caller runs every tick; we only act this often). */
+    private static final int ENSURE_CHECK_INTERVAL = 20;
+    private static final int ENSURE_MAX_BACKOFF = 1200;
+
+    /**
+     * Safety net for the one-shot summon on equip / login. Those paths try exactly once; if that
+     * single attempt hits ANY problem — a slow login while a big modpack is still loading, another
+     * mod refusing the entity join, a third-party container throwing during the storage scan, a
+     * TLM-version mismatch throwing mid-spawn — Cirno simply never appeared and nothing ever tried
+     * again until the player relogged or fiddled with H. This checks once a second whether an
+     * equipped, not-hidden Cirno is actually present and, if not, retries with exponential
+     * backoff (so a permanent refusal costs almost nothing) and logs the real cause.
+     * <p>
+     * Deliberately conservative about duplicates: it never replaces a tracked UUID directly. A
+     * tracked-but-missing Cirno goes through the same post-login grace window used elsewhere
+     * (which first tries to recover her from disk) before a replacement is allowed.
+     */
+    static void tickEnsureCompanion(Player player, @Nullable ItemStack stack) {
+        if (stack == null || player.level().isClientSide || player.getServer() == null) return;
+        if (!(player.level() instanceof ServerLevel)) return;
+        if (player.tickCount < 40 || (player.tickCount + player.getId()) % ENSURE_CHECK_INTERVAL != 0) return;
+        if (!CirnoCommonConfig.companionEntityEnabled || !CompatManager.isTLMLoad()) return;
+        if (!player.isAlive() || player.isSleeping()) return;
+
+        CompoundTag data = player.getPersistentData();
+        if (data.contains(CirnoStateAccess.NBT_LOGIN_VERIFY_TICKS)) return; // grace window already running
+
+        if (CirnoStateAccess.getCompanionHidden(stack) || CirnoStateAccess.requiresItemRevive(stack)
+                || data.getInt(CirnoStateAccess.NBT_CIRNO_REVIVE_TICKS_LEFT) > 0) {
+            data.remove(NBT_ENSURE_BACKOFF);
+            data.remove(NBT_ENSURE_FAILS);
+            return;
+        }
+
+        int wait = data.getInt(NBT_ENSURE_BACKOFF);
+        if (wait > 0) {
+            data.putInt(NBT_ENSURE_BACKOFF, Math.max(0, wait - ENSURE_CHECK_INTERVAL));
+            return;
+        }
+
+        UUID uuid = CirnoStateAccess.getCompanionUUID(stack);
+        if (uuid != null) {
+            for (ServerLevel level : player.getServer().getAllLevels()) {
+                Entity e = level.getEntity(uuid);
+                if (e instanceof CirnoEntity cirno && cirno.isAlive()) {
+                    data.remove(NBT_ENSURE_FAILS);
+                    return; // she's here
+                }
+            }
+            // Tracked but not resident anywhere. Might just be an unloaded chunk — hand it to the
+            // login-verify window, which loads her last chunk and only replaces her on timeout.
+            data.putInt(CirnoStateAccess.NBT_LOGIN_VERIFY_TICKS, 100);
+            data.putInt(NBT_ENSURE_BACKOFF, 600);
+            return;
+        }
+
+        // Equipped, visible, nothing tracked: she should be here and isn't. Try to summon.
+        boolean spawned = false;
+        try {
+            spawnCompanion(player, stack, true);
+            ItemStack after = CirnoStateAccess.getCirnoStack(player);
+            spawned = after != null && CirnoStateAccess.getCompanionUUID(after) != null;
+        } catch (RuntimeException | LinkageError e) {
+            LOGGER.error("Cirno: summoning her for {} threw an exception (will retry with backoff). "
+                    + "If this repeats, it is almost certainly a version mismatch with Touhou Little Maid "
+                    + "or another maid addon — please report this stack trace.",
+                    player.getGameProfile().getName(), e);
+        }
+
+        if (spawned) {
+            data.remove(NBT_ENSURE_FAILS);
+            data.remove(NBT_ENSURE_BACKOFF);
+        } else {
+            int fails = data.getInt(NBT_ENSURE_FAILS) + 1;
+            data.putInt(NBT_ENSURE_FAILS, fails);
+            data.putInt(NBT_ENSURE_BACKOFF, Math.min(ENSURE_MAX_BACKOFF, 100 << Math.min(fails, 4)));
+            if (fails == 3) {
+                LOGGER.warn("Cirno: {} has her equipped and visible but she still hasn't spawned after {} "
+                        + "attempts. Common reasons: she is stored in a smart slab / photo / film that is "
+                        + "reachable, or a mod is refusing the entity join (see earlier log lines).",
+                        player.getGameProfile().getName(), fails);
+            }
+        }
     }
 
 
@@ -943,7 +1113,18 @@ public class CompanionLifecycleHandler {
         // IsCirnoCompanion itself. Any other path falls back to the maid's own save.
         CompoundTag stashed = maid.getPersistentData().contains(CirnoStateAccess.NBT_TLM_FILM_DATA, 10)
                 ? maid.getPersistentData().getCompound(CirnoStateAccess.NBT_TLM_FILM_DATA) : null;
-        CompoundTag data = stashed != null ? stashed.copy() : maid.saveWithoutId(new CompoundTag());
+        // Cheap reject first. A full saveWithoutId() serialises the whole maid (brain, inventory,
+        // every addon's data), and this handler runs for EVERY maid that joins any level — i.e.
+        // every chunk load that contains one. Without a stashed film payload the owner can only
+        // come from the maid itself, so an ownerless maid can never match below anyway.
+        if (stashed == null && maid.getOwnerUUID() == null) return;
+        CompoundTag data;
+        try {
+            data = stashed != null ? stashed.copy() : maid.saveWithoutId(new CompoundTag());
+        } catch (RuntimeException | LinkageError e) {
+            // A third-party maid addon failing to serialise must not break the maid's own join.
+            return;
+        }
         if (!data.getBoolean("IsCirnoCompanion")) return;
 
         UUID ownerUuid = data.hasUUID("OwnerPlayerUUID") ? data.getUUID("OwnerPlayerUUID") : maid.getOwnerUUID();
@@ -990,7 +1171,12 @@ public class CompanionLifecycleHandler {
         cirno.wakeFromMaidBed();
 
         event.setCanceled(true);
-        level.addFreshEntity(cirno);
+        if (!net.zhaiji.cirno.util.CirnoSpawnGuard.add(level, cirno)) {
+            // Refused: let the original (plain) maid join rather than losing her entirely.
+            cirno.discardDuplicate();
+            event.setCanceled(false);
+            return;
+        }
         bindRevivedCirno(owner, cirno);
     }
 

@@ -369,7 +369,14 @@ public class CommandCirnoManager {
         }
 
         cirno.setInvisible(!visible);
-        level.addFreshEntity(cirno);
+        if (!net.zhaiji.cirno.util.CirnoSpawnGuard.add(level, cirno)) {
+            // Join refused (another mod cancelled EntityJoinLevelEvent, UUID clash, ...). Don't
+            // record a UUID for an entity that doesn't exist.
+            cirno.discardDuplicate();
+            player.displayClientMessage(
+                    Component.literal("§c[Cirno] The world refused to spawn her — try again."), true);
+            return null;
+        }
         // The NBT snapshot restored above can carry over a sleeping pose if she
         // was captured mid-sleep — make sure a freshly (re)spawned companion
         // never appears already stuck asleep in front of the owner.
@@ -516,7 +523,7 @@ public class CommandCirnoManager {
     /**
      * Oathpin conversion (survival "+ Add"): turns the maid the player is looking at
      * into a command Cirno in the first free slot. The maid's data (inventory, tasks,
-     * etc.) is carried over, but she takes on Cirno's model rather than keeping her own.
+     * etc.) is carried over, and she keeps the model the maid already had.
      * Nothing is touched unless a slot is free and the Cirno actually spawns, so a
      * failed attempt never costs the player their maid. Returns true on success.
      */
@@ -551,13 +558,12 @@ public class CommandCirnoManager {
         }
 
         // Hand the maid's data to the slot as its snapshot; spawnOrRestoreCommandCirnoAt
-        // loads it into the new Cirno. Model/identity keys are stripped so she comes out
-        // as Cirno instead of a copy of the maid.
+        // loads it into the new Cirno. Only the entity identity (UUID) is dropped — the maid's
+        // model keys (TLM "ModelId", YSM "IsYsmModel"/"YsmModelId", ...) are deliberately KEPT, so
+        // the converted Cirno looks exactly like the maid did instead of falling back to TLM's
+        // default model.
         CompoundTag snapshot = maid.saveWithoutId(new CompoundTag());
         snapshot.remove("UUID");
-        snapshot.remove("ModelId");
-        snapshot.remove("IsYsmModel");
-        snapshot.remove("YsmModelId");
 
         CompoundTag slot = CirnoStateAccess.getSlotTag(player, index);
         if (slot != null) {

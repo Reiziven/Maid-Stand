@@ -864,7 +864,7 @@ public class CirnoStateAccess {
 
 
     /** How often (ticks) the dupe cleanup scans the player's current dimension. */
-    static final int DUPE_SCAN_INTERVAL_TICKS = 20;
+    static final int DUPE_SCAN_INTERVAL_TICKS = 100;
 
 
     /**

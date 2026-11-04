@@ -22,12 +22,26 @@ import java.util.Optional;
  * Curios is loaded before this class is ever resolved by the JVM.
  */
 public final class CuriosHooks {
+    private static final org.slf4j.Logger LOGGER = com.mojang.logging.LogUtils.getLogger();
+
     private CuriosHooks() {}
 
     public static void init(IEventBus modBus, IEventBus gameBus) {
-        modBus.addListener((FMLCommonSetupEvent event) ->
-                event.enqueueWork(() -> CuriosApi.registerCurio(InitItem.CIRNO.get(), new CirnoCurioItem())));
+        modBus.addListener((FMLCommonSetupEvent event) -> event.enqueueWork(CuriosHooks::registerCurio));
         gameBus.addListener(CuriosHooks::handlerCurioChangeEvent);
+    }
+
+    /**
+     * Runs as a deferred common-setup task. Wrapped so a failure is reported with context
+     * (which item, the real cause) instead of an anonymous "error in a deferred task".
+     */
+    private static void registerCurio() {
+        try {
+            CuriosApi.registerCurio(InitItem.CIRNO.get(), new CirnoCurioItem());
+        } catch (Exception | LinkageError e) {
+            LOGGER.error("Cirno: failed to register the Cirno item with Curios. It will not be "
+                    + "equippable in a Curios slot until this is fixed. Please report with the full log.", e);
+        }
     }
 
     private static void handlerCurioChangeEvent(CurioChangeEvent event) {
